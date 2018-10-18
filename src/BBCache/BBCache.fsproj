@@ -10,7 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TraceServer\TraceServer.fsproj" />
+    <ProjectReference Include="..\Cache\Cache.fsproj" />
   </ItemGroup>
 
 </Project>

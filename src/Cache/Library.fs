@@ -1,4 +1,4 @@
-namespace TraceServer
+namespace Cache
 
 open System.IO
 open System.Runtime.Serialization.Formatters.Binary
