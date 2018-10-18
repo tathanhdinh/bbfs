@@ -6,7 +6,8 @@ open TraceServer.Generator
 let main argv =
     match argv with
     | [| trace_file |] -> 
-        generateBasicBlock trace_file
+        let (translatedBasicBlock, allBasicBlock) = generateBasicBlock trace_file
+        printfn "\n\ntranslated basic blocks: %i (total: %i)" translatedBasicBlock allBasicBlock
         1
     | _ -> 
         printfn "trace file is not given"

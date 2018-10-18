@@ -3,8 +3,8 @@ namespace TraceServer
 open System.IO
 open System.Runtime.Serialization.Formatters.Binary
 open StackExchange.Redis
-open K4os.Compression.LZ4
 open K4os.Compression.LZ4.Streams
+open ShellProgressBar
 
 type BasicBlock =
     { ProgramCounter : uint64
@@ -26,6 +26,11 @@ module Generator =
         let redisConnection = ConnectionMultiplexer.Connect("localhost")
         let redisDB = redisConnection.GetDatabase()
         let binaryFormatter = new BinaryFormatter()
+
+        let mutable progressBarOption = new ProgressBarOptions()
+        // progressBarOption.ProgressCharacter <- '\u2593'
+        progressBarOption.CollapseWhenFinished <- true
+        let progressBar = new ProgressBar(850590, "trace cached", progressBarOption)
         
         let serializeBasicBlock basicBlock =
             use stream = new MemoryStream()
@@ -76,11 +81,13 @@ module Generator =
                 let serializedBasicBlock = serializeBasicBlock basicBlock
                 redisDB.ListRightPush(~~BasicBlockList, ~~serializedBasicBlock) |> ignore
             | _ -> failwith "unreachable"
+        let mutable readCount = 0
         try 
             while true do
                 readBasicBlock()
+                readCount <- readCount + 1
+                progressBar.Tick(readCount)
         with _ -> ()
-        
         let dataListLength = redisDB.ListLength(~~BasicBlockDataList)
         let basicBlockListLength = redisDB.ListLength(~~BasicBlockList)
         (dataListLength, basicBlockListLength)
