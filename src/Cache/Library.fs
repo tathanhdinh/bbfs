@@ -18,6 +18,11 @@ module Generator =
     
     [<Literal>]
     let BasicBlockList = "basic_block_list"
+
+    type BasicBlockGenerator (traceFile: string, cacheServer: string) =
+        member bb.DataStream = 
+            let decoderStream = LZ4Stream.Decode(File.OpenRead(traceFile))
+            new BinaryReader(decoderStream)
     
     let generateBasicBlock (traceFile : string) =
         // use traceFileReader = new BinaryReader(File.OpenRead(traceFile))
@@ -58,8 +63,8 @@ module Generator =
                       LoopCount = basicBlockLoopCount }
                 
                 // ref: https://github.com/StackExchange/StackExchange.Redis/issues/831
-                let basicBlockDataIndex =
-                    redisDB.ListRightPush(~~BasicBlockDataList, ~~basicBlockData) |> ignore
+                redisDB.ListRightPush(~~BasicBlockDataList, ~~basicBlockData) |> ignore
+
                 // ref: https://gist.github.com/theburningmonk/2071722
                 let serializedBasicBlock = serializeBasicBlock basicBlock
                 redisDB.ListRightPush(~~BasicBlockList, ~~serializedBasicBlock) |> ignore
