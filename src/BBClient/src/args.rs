@@ -52,10 +52,7 @@ struct Opt {
         short = "m",
         long = "exec_mode",
         help = "show only basic blocks under the execution mode",
-        raw(
-            possible_values = "&EXECUTION_MODES",
-            case_insensitive = "false"
-        )
+        raw(possible_values = "&EXECUTION_MODES", case_insensitive = "false")
     )]
     execution_mode: Option<ExecutionMode>,
 

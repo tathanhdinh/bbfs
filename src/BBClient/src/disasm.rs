@@ -59,15 +59,14 @@ impl<'a> Disasm<'a> {
             decoder.instruction_iterator(data, base_address).collect();
 
         let mut decoded_buffer = [0u8, 200];
-        let mut decoded_buffer = {
-            OutputBuffer::new(&mut decoded_buffer)
-        };
+        let mut decoded_buffer = { OutputBuffer::new(&mut decoded_buffer) };
 
         let mut decoded_byte_count = 0usize;
         let mut disasm_insts = vec![];
 
         for (ins, ins_addr) in &decoded_insts {
-            self.formatter.format_instruction(ins, &mut decoded_buffer, None, None)?;
+            self.formatter
+                .format_instruction(ins, &mut decoded_buffer, None, None)?;
 
             let next_decoded_byte_count = decoded_byte_count + ins.length as usize;
 
@@ -77,7 +76,6 @@ impl<'a> Disasm<'a> {
                 data: &data[decoded_byte_count..next_decoded_byte_count],
                 disasm: ins_disasm,
             });
-
         }
 
         Ok(disasm_insts)
