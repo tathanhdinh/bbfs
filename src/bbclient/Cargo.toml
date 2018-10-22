@@ -1,0 +1,15 @@
+[package]
+name = "bbclient"
+version = "0.1.0"
+authors = ["TA Thanh Dinh <tathanhdinh@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+zydis = { git = "https://github.com/zyantific/zydis-rs"}
+tabwriter = "1.1.0"
+redis = "0.9.1"
+structopt = "0.2.12"
+strum = "0.11.0"
+strum_macros = "0.11.0"
+lazy_static = "1.1.0"
+failure = "0.1.2"
