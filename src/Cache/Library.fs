@@ -13,11 +13,9 @@ type BasicBlock =
       LoopCount : uint64 }
 
 module Generator =
-    [<Literal>]
-    let BasicBlockDataList = "raw_basic_block_list"
+    let [<Literal>] BasicBlockDataList = "raw_basic_block_list"
     
-    [<Literal>]
-    let BasicBlockList = "basic_block_list"
+    let [<Literal>] BasicBlockList = "basic_block_list"
 
     type BasicBlockGenerator (traceFile: string, cacheServer: string) =
         member bb.DataStream = 
