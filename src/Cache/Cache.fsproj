@@ -10,7 +10,6 @@
 
   <ItemGroup>
     <PackageReference Include="K4os.Compression.LZ4.Streams" Version="1.0.3" />
-    <PackageReference Include="ShellProgressBar" Version="4.2.0" />
     <PackageReference Include="StackExchange.Redis" Version="2.0.513" />
   </ItemGroup>
 

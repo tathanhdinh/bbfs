@@ -1,9 +1,9 @@
 use gtk::{
-    ApplicationWindow, Builder, Button, ButtonExt, ContainerExt, GtkWindowExt, HeaderBar, Inhibit,
-    WidgetExt, Window, WindowType, TextView, Application,
+    Application, ApplicationWindow, Builder, Button, ButtonExt, ContainerExt, GtkWindowExt,
+    HeaderBar, Inhibit, TextView, WidgetExt, Window, WindowType,
 };
 
-use std::{rc::Rc, cell::RefCell};
+use std::{cell::RefCell, rc::Rc};
 
 pub(crate) struct GuiWindow {
     window: ApplicationWindow,
