@@ -27,7 +27,6 @@ impl<'a> Disasm<'a> {
         formatter.set_property(FormatterProperty::AddressSignedness(Signedness::Signed))?;
         formatter.set_property(FormatterProperty::DisplacementPadding(Padding::Disabled))?;
         formatter.set_property(FormatterProperty::ImmediatePadding(Padding::Disabled))?;
-        formatter.set_property(FormatterProperty::Uppercase(false))?;
         formatter.set_property(FormatterProperty::HexUppercase(false))?;
         formatter.set_property(FormatterProperty::DisplacementSignedness(
             Signedness::Signed,
@@ -76,6 +75,8 @@ impl<'a> Disasm<'a> {
                 data: &data[decoded_byte_count..next_decoded_byte_count],
                 disasm: ins_disasm,
             });
+
+            decoded_byte_count = next_decoded_byte_count;
         }
 
         Ok(disasm_insts)

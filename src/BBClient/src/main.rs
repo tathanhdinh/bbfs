@@ -6,6 +6,5 @@ mod disasm;
 mod cache;
 
 fn main() {
-    // println!("Hello, world!");
     let opt = args::BBClientOpt::new();
 }
