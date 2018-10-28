@@ -14,6 +14,46 @@ struct DisasmBasicBlock<'a> {
     instructions: Vec<DisasmInst<'a>>,
 }
 
+impl<'a> DisasmBasicBlock<'a> {
+    fn contain_address_exact(&self, addr: u64) -> bool {
+        self.instructions
+            .iter()
+            .position(|ins| ins.address == addr)
+            .is_some()
+    }
+
+    fn contain_address(&self, addr: u64) -> bool {
+        let mut instructions = self.instructions.iter();
+        if let (Some(first_ins), Some(last_ins)) =
+            (self.instructions.first(), self.instructions.last())
+        {
+            first_ins.address <= addr && addr <= last_ins.address
+        } else {
+            unreachable!()
+        }
+    }
+
+    fn contain_instruction_pattern(&self, ins_pat: &str) -> bool {
+        self.instructions
+            .iter()
+            .position(|ins| ins.disasm.contains(ins_pat))
+            .is_some()
+    }
+
+    // ref: https://stackoverflow.com/questions/35901547/how-can-i-find-a-subsequence-in-a-u8-slice
+    fn contains_instruction_bytes(&self, ins_bytes: &[u8]) -> bool {
+        self.instructions
+            .iter()
+            .position(|ins| {
+                ins.data
+                    .windows(ins_bytes.len())
+                    .position(|w| w == ins_bytes)
+                    .is_some()
+            })
+            .is_some()
+    }
+}
+
 impl<'a> Display for DisasmBasicBlock<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut formatted_insts = Vec::new();
