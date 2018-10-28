@@ -95,20 +95,26 @@ impl<'a, 'b> Iterator for CachedBasicBlockIter<'a, 'b> {
             let indexed_data: std::result::Result<Vec<u8>, _> = self
                 .connection
                 .lindex(self.database, self.next_index as isize);
-            if let Ok(indexed_data) = indexed_data {
-                let min_size = size_of::<u64>() + // program counter
+
+            if indexed_data.is_err() {
+                unreachable!()
+            }
+
+            let indexed_data = indexed_data.unwrap();
+
+            let min_size = size_of::<u64>() + // program counter
                                 size_of::<u8>() + // execution mode
                                 size_of::<u8>() + // execution privilege
                                 size_of::<u64>(); // loop count
-                if indexed_data.len() <= min_size {
-                    None
-                } else {
-                    let raw_basic_block: RawBasicBlock = From::from(indexed_data.as_ref());
-                    Some(From::from(raw_basic_block))
-                }
-            } else {
-                None
+
+            if indexed_data.len() <= min_size {
+                unreachable!()
             }
+
+            self.next_index += 1;
+
+            let raw_basic_block: RawBasicBlock = From::from(indexed_data.as_ref());
+            Some(From::from(raw_basic_block))
         }
     }
 }
@@ -129,19 +135,15 @@ impl Cache {
         }
     }
 
-    fn basic_blocks(&self) -> Result<CachedBasicBlockIter> {
+    fn basic_blocks(&self) -> CachedBasicBlockIter {
         let database = &self.database;
-        let total_count: usize = self.connection.llen(database)?;
-        Ok(CachedBasicBlockIter {
+        let total_count: usize = self.connection.llen(database).unwrap();
+
+        CachedBasicBlockIter {
             connection: &self.connection,
             database,
             next_index: 0,
             total_count,
-        })
+        }
     }
 }
-
-// impl Iterator for Cache {
-//     type Item = BasicBlock;
-
-// }

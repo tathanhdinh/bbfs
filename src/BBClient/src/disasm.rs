@@ -1,3 +1,5 @@
+use std::fmt::{self, Display};
+
 use zydis::{Decoder, Formatter};
 
 use crate::{args::ExecutionMode, error::Result};
@@ -6,6 +8,32 @@ struct DisasmInst<'a> {
     pub address: u64,
     pub data: &'a [u8],
     pub disasm: String,
+}
+
+struct DisasmBasicBlock<'a> {
+    instructions: Vec<DisasmInst<'a>>,
+}
+
+impl<'a> Display for DisasmBasicBlock<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut formatted_insts = Vec::new();
+        for inst in &self.instructions {
+            let formatted_inst = {
+                let inst_data_str = &inst
+                    .data
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<Vec<_>>()
+                    .join(" ")[..];
+                format!(
+                    "0x{:016x}\t{:45}\t{}",
+                    inst.address, inst_data_str, &inst.disasm
+                )
+            };
+            formatted_insts.push(formatted_inst);
+        }
+        write!(f, "{}", formatted_insts.join("\n"))
+    }
 }
 
 struct Disasm<'a> {
@@ -44,7 +72,7 @@ impl<'a> Disasm<'a> {
         data: &'a [u8],
         execution_mode: ExecutionMode,
         base_address: Option<u64>,
-    ) -> Result<Vec<DisasmInst<'a>>> {
+    ) -> Result<DisasmBasicBlock<'a>> {
         use zydis::*;
 
         let decoder = match execution_mode {
@@ -79,6 +107,8 @@ impl<'a> Disasm<'a> {
             decoded_byte_count = next_decoded_byte_count;
         }
 
-        Ok(disasm_insts)
+        Ok(DisasmBasicBlock {
+            instructions: disasm_insts,
+        })
     }
 }
