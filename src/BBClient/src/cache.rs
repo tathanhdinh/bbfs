@@ -78,7 +78,8 @@ impl Display for BasicBlock {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "loop: {}, mode: {}, privilege: {}",
+            "address: 0x{:016x}, loop: {}, mode: {}, privilege: {}",
+            self.program_counter,
             self.loop_count,
             self.execution_mode.as_static(),
             self.execution_privilege.as_static()
