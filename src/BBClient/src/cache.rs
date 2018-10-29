@@ -1,10 +1,12 @@
 use std::{
+    fmt::{self, Display},
     io::{Cursor, Read},
     mem::size_of,
 };
 
 use redis::{cmd, Client, Commands, Connection};
 use scroll::IOread;
+use strum::AsStaticRef;
 
 use crate::args::{ExecutionMode, ExecutionPrivilege};
 
@@ -25,6 +27,7 @@ impl From<&[u8]> for RawBasicBlock {
         let loop_count = raw.ioread::<u64>().unwrap();
         let mut data = Vec::new();
         raw.read_to_end(&mut data).unwrap();
+
         RawBasicBlock {
             program_counter,
             execution_mode,
@@ -35,7 +38,7 @@ impl From<&[u8]> for RawBasicBlock {
     }
 }
 
-struct BasicBlock {
+pub(crate) struct BasicBlock {
     pub program_counter: u64,
     pub execution_mode: ExecutionMode,
     pub execution_privilege: ExecutionPrivilege,
@@ -71,14 +74,26 @@ impl From<RawBasicBlock> for BasicBlock {
     }
 }
 
+impl Display for BasicBlock {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "loop: {}, mode: {}, privilege: {}",
+            self.loop_count,
+            self.execution_mode.as_static(),
+            self.execution_privilege.as_static()
+        )
+    }
+}
+
 use crate::error::Result;
 
-struct Cache {
+pub(crate) struct Cache {
     connection: Connection,
     database: String,
 }
 
-struct CachedBasicBlockIter<'a, 'b> {
+pub(crate) struct CachedBasicBlockIter<'a, 'b> {
     connection: &'a Connection,
     database: &'b str,
     next_index: usize,
@@ -101,6 +116,7 @@ impl<'a, 'b> Iterator for CachedBasicBlockIter<'a, 'b> {
             }
 
             let indexed_data = indexed_data.unwrap();
+            // println!("cached basic block length: {}", indexed_data.len());
 
             let min_size = size_of::<u64>() + // program counter
                                 size_of::<u8>() + // execution mode
@@ -120,7 +136,7 @@ impl<'a, 'b> Iterator for CachedBasicBlockIter<'a, 'b> {
 }
 
 impl Cache {
-    fn from(redis_server_url: &str, basic_block_list_name: &str) -> Result<Self> {
+    pub fn from_args(redis_server_url: &str, basic_block_list_name: &str) -> Result<Self> {
         let client = Client::open(redis_server_url)?;
         let connection = client.get_connection()?;
         let cached_database_type_name: String =
@@ -135,7 +151,7 @@ impl Cache {
         }
     }
 
-    fn basic_blocks(&self) -> CachedBasicBlockIter {
+    pub fn basic_blocks(&self) -> CachedBasicBlockIter {
         let database = &self.database;
         let total_count: usize = self.connection.llen(database).unwrap();
 

@@ -1,29 +1,31 @@
 use std::fmt::{self, Display};
 
+use fasthash::metro;
+use lru::LruCache;
 use zydis::{Decoder, Formatter};
 
 use crate::{args::ExecutionMode, error::Result};
 
-struct DisasmInst<'a> {
+pub(crate) struct DisasmInst<'a> {
     pub address: u64,
+    // pub data: Cow<'a, [u8]>,
     pub data: &'a [u8],
     pub disasm: String,
 }
 
-struct DisasmBasicBlock<'a> {
+pub(crate) struct DisasmBasicBlock<'a> {
     instructions: Vec<DisasmInst<'a>>,
 }
 
 impl<'a> DisasmBasicBlock<'a> {
-    fn contain_address_exact(&self, addr: u64) -> bool {
+    pub fn contain_address_exact(&self, addr: u64) -> bool {
         self.instructions
             .iter()
             .position(|ins| ins.address == addr)
             .is_some()
     }
 
-    fn contain_address(&self, addr: u64) -> bool {
-        let mut instructions = self.instructions.iter();
+    pub fn contain_address(&self, addr: u64) -> bool {
         if let (Some(first_ins), Some(last_ins)) =
             (self.instructions.first(), self.instructions.last())
         {
@@ -33,7 +35,7 @@ impl<'a> DisasmBasicBlock<'a> {
         }
     }
 
-    fn contain_instruction_pattern(&self, ins_pat: &str) -> bool {
+    pub fn contain_instruction_pattern(&self, ins_pat: &str) -> bool {
         self.instructions
             .iter()
             .position(|ins| ins.disasm.contains(ins_pat))
@@ -41,7 +43,7 @@ impl<'a> DisasmBasicBlock<'a> {
     }
 
     // ref: https://stackoverflow.com/questions/35901547/how-can-i-find-a-subsequence-in-a-u8-slice
-    fn contains_instruction_bytes(&self, ins_bytes: &[u8]) -> bool {
+    pub fn contains_instruction_bytes(&self, ins_bytes: &[u8]) -> bool {
         self.instructions
             .iter()
             .position(|ins| {
@@ -76,43 +78,64 @@ impl<'a> Display for DisasmBasicBlock<'a> {
     }
 }
 
-struct Disasm<'a> {
+struct DisasmInstructionLayout {
+    pub address: u64,
+    pub end_offset: usize,
+    pub disasm: String,
+}
+
+struct DisasmBasicBlockLayout {
+    instruction_layouts: Vec<DisasmInstructionLayout>,
+}
+
+pub(crate) struct Disasm<'a> {
     decoder_32: Decoder,
     decoder_64: Decoder,
     formatter: Formatter<'a>,
+    // cache: LruCache<(u64, ExecutionMode, u64), DisasmBasicBlock<'a>>,
+    layout_cache: LruCache<(u64, ExecutionMode, u64), DisasmBasicBlockLayout>,
+    decoded_buffer: [u8; 200],
 }
 
-impl<'a> Disasm<'a> {
-    fn new() -> Result<Self> {
+impl<'a, 'b> Disasm<'a> {
+    pub fn from_args() -> Result<Self> {
         use zydis::*;
 
         let decoder_32 = Decoder::new(MachineMode::LongCompat32, AddressWidth::_32)?;
         let decoder_64 = Decoder::new(MachineMode::Long64, AddressWidth::_64)?;
 
         let mut formatter = Formatter::new(FormatterStyle::Intel)?;
-        formatter.set_property(FormatterProperty::AddressPaddingRelative(Padding::Disabled))?;
-        formatter.set_property(FormatterProperty::AddressPaddingAbsolute(Padding::Disabled))?;
-        formatter.set_property(FormatterProperty::AddressSignedness(Signedness::Signed))?;
+        formatter.set_property(FormatterProperty::AddressPaddingRelative(Padding::Auto))?;
+        formatter.set_property(FormatterProperty::AddressPaddingAbsolute(Padding::Auto))?;
+        formatter.set_property(FormatterProperty::AddressSignedness(Signedness::Unsigned))?;
+
         formatter.set_property(FormatterProperty::DisplacementPadding(Padding::Disabled))?;
-        formatter.set_property(FormatterProperty::ImmediatePadding(Padding::Disabled))?;
-        formatter.set_property(FormatterProperty::HexUppercase(false))?;
         formatter.set_property(FormatterProperty::DisplacementSignedness(
             Signedness::Signed,
         ))?;
+        formatter.set_property(FormatterProperty::ImmediatePadding(Padding::Disabled))?;
+        formatter.set_property(FormatterProperty::ImmediateSignedness(Signedness::Unsigned))?;
+
+        formatter.set_property(FormatterProperty::HexUppercase(false))?;
+        formatter.set_property(FormatterProperty::ForceRelativeRiprel(true))?;
 
         Ok(Disasm {
             decoder_32,
             decoder_64,
             formatter,
+            // cache: LruCache::new(1024),
+            layout_cache: LruCache::new(16 * 1024),
+            // output_buffer: OutputBuffer::new(),
+            decoded_buffer: [0u8; 200],
         })
     }
 
-    fn disasm(
-        &self,
-        data: &'a [u8],
+    pub fn disasm(
+        &mut self,
+        data: &'b [u8],
         execution_mode: ExecutionMode,
         base_address: Option<u64>,
-    ) -> Result<DisasmBasicBlock<'a>> {
+    ) -> Result<DisasmBasicBlock<'b>> {
         use zydis::*;
 
         let decoder = match execution_mode {
@@ -122,30 +145,78 @@ impl<'a> Disasm<'a> {
 
         let base_address = base_address.unwrap_or(0);
 
-        let decoded_insts: Vec<(DecodedInstruction, u64)> =
-            decoder.instruction_iterator(data, base_address).collect();
+        let basic_block_hash = (base_address, execution_mode, metro::hash64(&data));
+        if self.layout_cache.get(&basic_block_hash).is_none() {
+            // self.cache.put(basic_block_hash, DisasmBasicBlock { instructions: disasm_insts });
+            let decoded_insts: Vec<(DecodedInstruction, u64)> =
+                decoder.instruction_iterator(data, base_address).collect();
 
-        let mut decoded_buffer = [0u8, 200];
-        let mut decoded_buffer = { OutputBuffer::new(&mut decoded_buffer) };
+            let mut decoded_buffer = OutputBuffer::new(&mut self.decoded_buffer);
 
-        let mut decoded_byte_count = 0usize;
+            let mut decoded_byte_count = 0usize;
+            let mut disasm_inst_layouts = vec![];
+
+            for (ins, ins_addr) in &decoded_insts {
+                self.formatter.format_instruction(
+                    ins,
+                    &mut decoded_buffer,
+                    Some(*ins_addr),
+                    None,
+                )?;
+
+                let next_decoded_byte_count = decoded_byte_count + ins.length as usize;
+
+                // let ins_disasm = String::from(decoded_buffer.as_str()?);
+
+                disasm_inst_layouts.push(DisasmInstructionLayout {
+                    address: *ins_addr,
+                    end_offset: next_decoded_byte_count,
+                    disasm: String::from(decoded_buffer.as_str()?),
+                });
+
+                // disasm_insts.push(DisasmInst {
+                //     address: *ins_addr,
+                //     data: &data[decoded_byte_count..next_decoded_byte_count],
+                //     disasm: ins_disasm,
+                // });
+
+                decoded_byte_count = next_decoded_byte_count;
+            }
+
+            self.layout_cache.put(
+                basic_block_hash,
+                DisasmBasicBlockLayout {
+                    instruction_layouts: disasm_inst_layouts,
+                },
+            );
+        }
+
+        let disasm_basic_block_layout = self.layout_cache.get(&basic_block_hash).unwrap();
         let mut disasm_insts = vec![];
+        let mut begin_offset = 0usize;
 
-        for (ins, ins_addr) in &decoded_insts {
-            self.formatter
-                .format_instruction(ins, &mut decoded_buffer, None, None)?;
-
-            let next_decoded_byte_count = decoded_byte_count + ins.length as usize;
-
-            let ins_disasm = String::from(decoded_buffer.as_str()?);
+        for DisasmInstructionLayout {
+            address,
+            end_offset,
+            disasm,
+        } in &disasm_basic_block_layout.instruction_layouts
+        {
             disasm_insts.push(DisasmInst {
-                address: *ins_addr,
-                data: &data[decoded_byte_count..next_decoded_byte_count],
-                disasm: ins_disasm,
+                address: *address,
+                data: &data[begin_offset..*end_offset],
+                disasm: disasm.to_string(),
             });
 
-            decoded_byte_count = next_decoded_byte_count;
+            begin_offset = *end_offset;
         }
+
+        // return Ok(&self.cache.get(&basic_block_hash).unwrap())
+
+        // if let Some(basic_block) = self.cache.get(&basic_block_hash) {
+        //     return Ok(basic_block)
+        // }
+
+        // println!("\ndisasm data length: {}", data.len());
 
         Ok(DisasmBasicBlock {
             instructions: disasm_insts,

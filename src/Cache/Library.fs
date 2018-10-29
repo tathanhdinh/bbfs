@@ -75,6 +75,9 @@ module Generator =
 
                 // ref: https://gist.github.com/theburningmonk/2071722
                 let serializedBasicBlock = serializeBasicBlock basicBlock
+
+                // printfn "serialized basic block length: %d" <| Array.length serializedBasicBlock
+
                 redisDatabase.ListRightPush(~~BasicBlockList, ~~serializedBasicBlock) |> ignore
 
                 // printfn "raw basic block size: %d" <| Array.length basicBlockData

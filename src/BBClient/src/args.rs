@@ -1,21 +1,21 @@
 use lazy_static::lazy_static;
-use std::path::PathBuf;
+// use std::{path::PathBuf, hash::Hash};
 use structopt::StructOpt;
 use strum::{AsStaticRef, IntoEnumIterator};
 use strum_macros::{AsStaticStr, EnumIter, EnumString};
 
-use crate::error::Result;
+// use crate::error::Result;
 
-#[derive(EnumString, EnumIter, AsStaticStr, Debug)]
+#[derive(EnumString, EnumIter, AsStaticStr, Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub(crate) enum ExecutionMode {
     #[strum(serialize = "compat")]
     Compat,
 
-    #[strum(serialize = "64bit")]
+    #[strum(serialize = "64-bit")]
     Bit64,
 }
 
-#[derive(EnumString, EnumIter, AsStaticStr, Debug)]
+#[derive(EnumString, EnumIter, AsStaticStr, Debug, PartialEq, Eq, Clone, Copy)]
 pub(crate) enum ExecutionPrivilege {
     #[strum(serialize = "user")]
     User,
