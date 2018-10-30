@@ -78,8 +78,7 @@ impl Display for BasicBlock {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "address: 0x{:016x}, loop: {}, mode: {}, privilege: {}",
-            self.program_counter,
+            "loop: {}, mode: {}, privilege: {}",
             self.loop_count,
             self.execution_mode.as_static(),
             self.execution_privilege.as_static()
@@ -89,23 +88,31 @@ impl Display for BasicBlock {
 
 use crate::error::Result;
 
-pub(crate) struct Cache {
+pub(crate) struct Cache<'b> {
     connection: Connection,
-    database: String,
+    raw_basic_block_list: &'b str,
+    basic_block_list: &'b str,
 }
 
 pub(crate) struct CachedBasicBlockIter<'a, 'b> {
     connection: &'a Connection,
     database: &'b str,
     next_index: usize,
-    total_count: usize,
+    pub count: usize,
+}
+
+pub(crate) struct CachedRawBasicBlockIter<'a, 'b> {
+    connection: &'a Connection,
+    database: &'b str,
+    next_index: usize,
+    pub count: usize,
 }
 
 impl<'a, 'b> Iterator for CachedBasicBlockIter<'a, 'b> {
     type Item = BasicBlock;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.next_index >= self.total_count {
+        if self.next_index >= self.count {
             None
         } else {
             let indexed_data: std::result::Result<Vec<u8>, _> = self
@@ -136,31 +143,37 @@ impl<'a, 'b> Iterator for CachedBasicBlockIter<'a, 'b> {
     }
 }
 
-impl Cache {
-    pub fn from_args(redis_server_url: &str, basic_block_list_name: &str) -> Result<Self> {
+impl<'b> Cache<'b> {
+    pub fn from_args(
+        redis_server_url: &str,
+        basic_block_list: &'b str,
+        raw_basic_block_list: &'b str,
+    ) -> Result<Self> {
         let client = Client::open(redis_server_url)?;
         let connection = client.get_connection()?;
-        let cached_database_type_name: String =
-            cmd("TYPE").arg(basic_block_list_name).query(&connection)?;
+
+        Ok(Cache {
+            connection,
+            basic_block_list,
+            raw_basic_block_list,
+        })
+    }
+
+    pub fn basic_blocks(&self) -> Result<CachedBasicBlockIter> {
+        let cached_database_type_name: String = cmd("TYPE")
+            .arg(self.basic_block_list)
+            .query(&self.connection)?;
         if cached_database_type_name == "list" {
-            Ok(Cache {
-                connection,
-                database: String::from(basic_block_list_name),
+            let count: usize = self.connection.llen(self.basic_block_list).unwrap();
+
+            Ok(CachedBasicBlockIter {
+                connection: &self.connection,
+                database: self.basic_block_list,
+                next_index: 0,
+                count,
             })
         } else {
             Err(application_error!("cached basic block data is not a list"))
-        }
-    }
-
-    pub fn basic_blocks(&self) -> CachedBasicBlockIter {
-        let database = &self.database;
-        let total_count: usize = self.connection.llen(database).unwrap();
-
-        CachedBasicBlockIter {
-            connection: &self.connection,
-            database,
-            next_index: 0,
-            total_count,
         }
     }
 }
