@@ -9,7 +9,7 @@ mod args;
 mod disasm;
 // mod ui;
 mod cache;
-mod iname;
+// mod iname;
 
 // use crate::cache::Cache;
 
@@ -23,13 +23,9 @@ const INSTRUCTION_LIST_NAME: &str = "instruction_list";
 fn main() -> Result<()> {
     let opt = args::Opt::from_args();
 
-    let cache = cache::Cache::from_args(
-        REDIS_SERVER_LOCATION,
-        BASIC_BLOCK_LIST_NAME,
-        RAW_BASIC_BLOCK_LIST_NAME,
-    )?;
+    let cache = cache::Cache::from_url(REDIS_SERVER_LOCATION)?;
 
-    let basic_blocks = cache.basic_blocks()?;
+    let basic_blocks = cache.basic_blocks::<cache::BasicBlock>(BASIC_BLOCK_LIST_NAME)?;
 
     if let Some(opt) = args::ShowingClientOpt::from(opt) {
         let stdout = io::stdout();
@@ -76,8 +72,8 @@ fn main() -> Result<()> {
             tw.flush()?;
         }
     } else {
-        let mut instruction_cache =
-            iname::RemillCache::from_args(REDIS_SERVER_LOCATION, INSTRUCTION_LIST_NAME)?;
+        // let mut instruction_cache =
+        //     iname::RemillCache::from_args(REDIS_SERVER_LOCATION, INSTRUCTION_LIST_NAME)?;
 
         // let progress_bar = ProgressBar::new(basic_blocks.count as u64);
 
@@ -90,7 +86,7 @@ fn main() -> Result<()> {
         //     "{} instruction cached",
         //     instruction_cache.count()?
         // ));
-        println!("{} instruction cached", instruction_cache.count()?);
+        // println!("{} instruction cached", instruction_cache.count()?);
     }
 
     Ok(())

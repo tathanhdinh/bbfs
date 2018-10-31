@@ -8,7 +8,6 @@ use crate::{args::ExecutionMode, error::Result};
 
 pub(crate) struct DisasmInst<'a> {
     pub address: u64,
-    // pub data: Cow<'a, [u8]>,
     pub data: &'a [u8],
     pub disasm: String,
 }
@@ -92,8 +91,7 @@ pub(crate) struct Disasm<'a> {
     decoder_32: Decoder,
     decoder_64: Decoder,
     formatter: Formatter<'a>,
-    // cache: LruCache<(u64, ExecutionMode, u64), DisasmBasicBlock<'a>>,
-    layout_cache: LruCache<(u64, ExecutionMode, u64), DisasmBasicBlockLayout>,
+    layout_cache: LruCache<(ExecutionMode, u64), DisasmBasicBlockLayout>,
     decoded_buffer: [u8; 200],
 }
 
@@ -123,9 +121,7 @@ impl<'a, 'b> Disasm<'a> {
             decoder_32,
             decoder_64,
             formatter,
-            // cache: LruCache::new(1024),
             layout_cache: LruCache::new(16 * 1024),
-            // output_buffer: OutputBuffer::new(),
             decoded_buffer: [0u8; 200],
         })
     }
@@ -143,13 +139,10 @@ impl<'a, 'b> Disasm<'a> {
             ExecutionMode::Bit64 => &self.decoder_64,
         };
 
-        let base_address = base_address.unwrap_or(0);
-
-        let basic_block_hash = (base_address, execution_mode, metro::hash64(&data));
+        let basic_block_hash = (execution_mode, metro::hash64(&data));
         if self.layout_cache.get(&basic_block_hash).is_none() {
-            // self.cache.put(basic_block_hash, DisasmBasicBlock { instructions: disasm_insts });
             let decoded_insts: Vec<(DecodedInstruction, u64)> =
-                decoder.instruction_iterator(data, base_address).collect();
+                decoder.instruction_iterator(data, 0).collect();
 
             let mut decoded_buffer = OutputBuffer::new(&mut self.decoded_buffer);
 
@@ -157,28 +150,16 @@ impl<'a, 'b> Disasm<'a> {
             let mut disasm_inst_layouts = vec![];
 
             for (ins, ins_addr) in &decoded_insts {
-                self.formatter.format_instruction(
-                    ins,
-                    &mut decoded_buffer,
-                    Some(*ins_addr),
-                    None,
-                )?;
+                self.formatter
+                    .format_instruction(ins, &mut decoded_buffer, None, None)?;
 
                 let next_decoded_byte_count = decoded_byte_count + ins.length as usize;
-
-                // let ins_disasm = String::from(decoded_buffer.as_str()?);
 
                 disasm_inst_layouts.push(DisasmInstructionLayout {
                     address: *ins_addr,
                     end_offset: next_decoded_byte_count,
                     disasm: String::from(decoded_buffer.as_str()?),
                 });
-
-                // disasm_insts.push(DisasmInst {
-                //     address: *ins_addr,
-                //     data: &data[decoded_byte_count..next_decoded_byte_count],
-                //     disasm: ins_disasm,
-                // });
 
                 decoded_byte_count = next_decoded_byte_count;
             }
@@ -195,6 +176,8 @@ impl<'a, 'b> Disasm<'a> {
         let mut disasm_insts = vec![];
         let mut begin_offset = 0usize;
 
+        let base_address = base_address.unwrap_or(0);
+
         for DisasmInstructionLayout {
             address,
             end_offset,
@@ -202,21 +185,13 @@ impl<'a, 'b> Disasm<'a> {
         } in &disasm_basic_block_layout.instruction_layouts
         {
             disasm_insts.push(DisasmInst {
-                address: *address,
+                address: *address + base_address,
                 data: &data[begin_offset..*end_offset],
                 disasm: disasm.to_string(),
             });
 
             begin_offset = *end_offset;
         }
-
-        // return Ok(&self.cache.get(&basic_block_hash).unwrap())
-
-        // if let Some(basic_block) = self.cache.get(&basic_block_hash) {
-        //     return Ok(basic_block)
-        // }
-
-        // println!("\ndisasm data length: {}", data.len());
 
         Ok(DisasmBasicBlock {
             instructions: disasm_insts,
