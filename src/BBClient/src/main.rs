@@ -9,29 +9,30 @@ mod args;
 mod disasm;
 // mod ui;
 mod cache;
-// mod iname;
+mod iname;
 
 // use crate::cache::Cache;
 
 use crate::error::Result;
 
 const REDIS_SERVER_LOCATION: &str = "redis://localhost";
-const RAW_BASIC_BLOCK_LIST_NAME: &str = "raw_basic_block_list";
-const BASIC_BLOCK_LIST_NAME: &str = "basic_block_list";
-const INSTRUCTION_LIST_NAME: &str = "instruction_list";
+const RAW_BASIC_BLOCK_LIST: &str = "raw_basic_block_list";
+const ADDRESS_INDEPENDENT_BASIC_BLOCK_LIST: &str = "address_independent_basic_block_list";
+const BASIC_BLOCK_LIST: &str = "basic_block_list";
+const INSTRUCTION_LIST: &str = "instruction_list";
 
 fn main() -> Result<()> {
     let opt = args::Opt::from_args();
 
     let cache = cache::Cache::from_url(REDIS_SERVER_LOCATION)?;
 
-    let basic_blocks = cache.basic_blocks::<cache::BasicBlock>(BASIC_BLOCK_LIST_NAME)?;
-
     if let Some(opt) = args::ShowingClientOpt::from(opt) {
         let stdout = io::stdout();
         let mut tw = TabWriter::new(stdout.lock()).padding(4);
 
         let mut disasm = disasm::Disasm::from_args()?;
+
+        let basic_blocks = cache.basic_blocks::<cache::BasicBlock>(BASIC_BLOCK_LIST)?;
 
         for (basic_block_index, basic_block) in basic_blocks
             .skip(opt.starting_index)
@@ -72,21 +73,21 @@ fn main() -> Result<()> {
             tw.flush()?;
         }
     } else {
-        // let mut instruction_cache =
-        //     iname::RemillCache::from_args(REDIS_SERVER_LOCATION, INSTRUCTION_LIST_NAME)?;
+        let basic_blocks = cache.basic_blocks::<cache::AddressIndependentBasicBlock>(
+            ADDRESS_INDEPENDENT_BASIC_BLOCK_LIST,
+        )?;
 
-        // let progress_bar = ProgressBar::new(basic_blocks.count as u64);
+        let mut instruction_cache =
+            iname::RemillCache::from_args(REDIS_SERVER_LOCATION, INSTRUCTION_LIST)?;
 
-        // for basic_block in basic_blocks {
-        //     instruction_cache.cache_basic_block(&basic_block.data, basic_block.execution_mode)?;
-        //     progress_bar.inc(1);
-        // }
+        let progress_bar = ProgressBar::new(basic_blocks.count as u64);
 
-        // progress_bar.finish_with_message(&format!(
-        //     "{} instruction cached",
-        //     instruction_cache.count()?
-        // ));
-        // println!("{} instruction cached", instruction_cache.count()?);
+        for basic_block in basic_blocks {
+            instruction_cache.cache_basic_block(&basic_block.data, basic_block.execution_mode)?;
+            progress_bar.inc(1);
+        }
+
+        println!("{} instruction cached", instruction_cache.count()?);
     }
 
     Ok(())

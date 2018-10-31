@@ -65,7 +65,6 @@ impl From<Vec<u8>> for AddressIndependentBasicBlock {
     }
 }
 
-
 pub(crate) struct BasicBlock {
     pub program_counter: u64,
     pub execution_mode: ExecutionMode,
@@ -207,7 +206,7 @@ impl Cache {
                 cmd("TYPE").arg(database).query(&self.connection)?;
 
             if cached_database_type_name == "list" {
-                let count: usize = self.connection.llen(database).unwrap();
+                let count: usize = self.connection.llen(database)?;
 
                 Ok(CachedBasicBlockIter::<T> {
                     connection: &self.connection,
