@@ -38,6 +38,34 @@ use crate::args::{ExecutionMode, ExecutionPrivilege};
 //     }
 // }
 
+pub(crate) struct AddressIndependentBasicBlock {
+    pub execution_mode: ExecutionMode,
+    pub data: Vec<u8>,
+}
+
+impl From<Vec<u8>> for AddressIndependentBasicBlock {
+    fn from(raw: Vec<u8>) -> Self {
+        let mut raw = Cursor::new(raw);
+        let execution_mode = raw.ioread::<u8>().unwrap();
+        let mut data = Vec::new();
+        raw.read_to_end(&mut data).unwrap();
+
+        let execution_mode = match execution_mode {
+            0 => ExecutionMode::Compat,
+
+            1 => ExecutionMode::Bit64,
+
+            _ => unreachable!(),
+        };
+
+        AddressIndependentBasicBlock {
+            execution_mode,
+            data: data,
+        }
+    }
+}
+
+
 pub(crate) struct BasicBlock {
     pub program_counter: u64,
     pub execution_mode: ExecutionMode,
