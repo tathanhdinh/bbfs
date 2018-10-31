@@ -18,7 +18,10 @@ module Generator =
 
     let [<Literal>] BasicBlockList = "basic_block_list"
 
+    let [<Literal>] AddressIndependentBasicBlockList = "address_independent_basic_block_list"
+
     type BasicBlockGenerator (traceFile: string, metadataFile: string, ?cacheServer: string) =
+        let addressIndependentBasicBlockHashes = Set.empty
         let traceDataStream =
             let decoderStream = LZ4Stream.Decode <| File.OpenRead traceFile
             new BinaryReader(decoderStream)
@@ -39,11 +42,11 @@ module Generator =
             let inline (~~) (x : ^a) : ^b = ((^a or ^b) : (static member op_Implicit : ^a -> ^b) x)
 
             let serializeBasicBlock basicBlock =
-                let basicBlockSize = sizeof<uint64> + // ProgramCounter
-                                     sizeof<uint8> +  // ExecutionMode
-                                     sizeof<uint8> +  // Privilege
-                                     sizeof<uint64> + // LoopCount
-                                     Array.length basicBlock.Data
+                // let basicBlockSize = sizeof<uint64> + // ProgramCounter
+                //                      sizeof<uint8> +  // ExecutionMode
+                //                      sizeof<uint8> +  // Privilege
+                //                      sizeof<uint64> + // LoopCount
+                //                      Array.length basicBlock.Data
 
                 Array.concat [| BitConverter.GetBytes(basicBlock.ProgramCounter);
                                 [| basicBlock.ExecutionMode |];
@@ -51,6 +54,9 @@ module Generator =
                                 BitConverter.GetBytes(basicBlock.LoopCount);
                                 basicBlock.Data
                                 |]
+
+            let serializeAddressIndependentBasicBlock basicBlock =
+                Array.concat [| [| basicBlock.ExecutionMode |]; basicBlock.Data |]
 
             let isBasicBlockTranslated = traceDataStream.ReadByte ()
             match isBasicBlockTranslated with
@@ -80,6 +86,10 @@ module Generator =
 
                 redisDatabase.ListRightPush(~~BasicBlockList, ~~serializedBasicBlock) |> ignore
 
+                let serializedAddressIndependentBasicBlock = serializeAddressIndependentBasicBlock basicBlock
+                Set.add (hash serializedAddressIndependentBasicBlock) addressIndependentBasicBlockHashes |> ignore
+                redisDatabase.ListRightPush(~~AddressIndependentBasicBlockList, ~~serializedAddressIndependentBasicBlock) |> ignore
+
                 // printfn "raw basic block size: %d" <| Array.length basicBlockData
                 // printfn "serialized basic block size: %d" <| Array.length serializedBasicBlock
 
@@ -102,6 +112,11 @@ module Generator =
 
                 let serializedBasicBlock = serializeBasicBlock basicBlock
                 redisDatabase.ListRightPush(~~BasicBlockList, ~~serializedBasicBlock) |> ignore
+
+                let serializedAddressIndependentBasicBlock = serializeAddressIndependentBasicBlock basicBlock
+                if not (Set.contains (hash serializedAddressIndependentBasicBlock) addressIndependentBasicBlockHashes) then
+                    Set.add (hash serializedAddressIndependentBasicBlock) addressIndependentBasicBlockHashes |> ignore
+                    redisDatabase.ListRightPush(~~AddressIndependentBasicBlockList, ~~serializedAddressIndependentBasicBlock) |> ignore
 
             | _ -> failwith "unreachable"
 
