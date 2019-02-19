@@ -20,14 +20,14 @@ let main argv =
         let metadataFile = results.GetResult Metadata
         let basicBlockGenerator = BasicBlockGenerator(traceFile, metadataFile)
         let totalBasicBlockCount = basicBlockGenerator.TotalBasicBlockCount
-        let mutable progressBarOption = new ProgressBarOptions()
+        let mutable progressBarOption = ProgressBarOptions()
         progressBarOption.CollapseWhenFinished <- true
         let progressBar =
             new ProgressBar(int totalBasicBlockCount, "trace cached", progressBarOption)
         let mutable readCount = 0
         try
             while true do
-                basicBlockGenerator.generate()
+                basicBlockGenerator.Generate()
                 readCount <- readCount + 1
                 progressBar.Tick(readCount)
         with _ -> ()

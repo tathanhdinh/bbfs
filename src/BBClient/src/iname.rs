@@ -7,11 +7,13 @@ use lazy_static::lazy_static;
 use maplit::hashmap;
 use redis::{cmd, Client, Commands, Connection};
 
-use xed_sys as intel;
+// use xedsys as intel;
+// use crate::intel;
 
-use self::intel::{
-    xed_attribute_enum_t::*, xed_error_enum_t::*, xed_iclass_enum_t::*, xed_iform_enum_t::*,
+use xedsys::{
+    xed_attribute_enum_t::*, xed_error_enum_t::*, xed_iclass_enum_t::*, xed_iform_enum_t::{self, *},
     xed_operand_enum_t::*, *,
+    xed_machine_mode_enum_t, xed_address_width_enum_t,
 };
 
 use crate::{args::ExecutionMode, error::Result};
@@ -35,7 +37,7 @@ macro_rules! raw_pointer_to_ref {
 }
 
 lazy_static! {
-    static ref xed_nolock_iform_map: HashMap<intel::xed_iform_enum_t, intel::xed_iform_enum_t> = hashmap! {
+    static ref xed_nolock_iform_map: HashMap<xed_iform_enum_t, xed_iform_enum_t> = hashmap! {
         XED_IFORM_ADC_LOCK_MEMb_IMMb_80r2 => XED_IFORM_ADC_MEMb_IMMb_80r2,
         XED_IFORM_ADC_LOCK_MEMv_IMMz => XED_IFORM_ADC_MEMv_IMMz,
         XED_IFORM_ADC_LOCK_MEMb_IMMb_82r2 => XED_IFORM_ADC_MEMb_IMMb_82r2,
@@ -148,47 +150,50 @@ impl<'a> XedInst<'a> {
         }
 
         let remill_function_name = {
-            let inst_base = xed_decoded_inst_inst(&decoded_inst);
+            let inst_base = decoded_inst_inst(&decoded_inst).unwrap();
+            let iclass = inst_iclass(inst_base);
 
-            let has_lock = unsafe { xed_operand_values_has_lock_prefix(&decoded_inst) };
+            format!("{}", iclass_str(iclass))
 
-            let iform = {
-                let iform = xed_inst_iform_enum(inst_base);
-                if has_lock != 0 {
-                    *xed_nolock_iform_map.get(&iform).unwrap()
-                } else {
-                    iform
-                }
-            };
+            // let has_lock = unsafe { xed_operand_values_has_lock_prefix(&decoded_inst) };
 
-            let mut func_name = format!("{}", iform_str(iform));
+            // let iform = {
+            //     let iform = inst_iform_enum(inst_base);
+            //     if has_lock != 0 {
+            //         *xed_nolock_iform_map.get(&iform).unwrap()
+            //     } else {
+            //         iform
+            //     }
+            // };
 
-            let is_scalable = {
-                let sc = unsafe { xed_inst_get_attribute(inst_base, XED_ATTRIBUTE_SCALABLE) };
-                sc != 0
-            };
+            // let mut func_name = format!("{}", iform_str(iform));
 
-            if is_scalable {
-                func_name = format!("{}_{}", func_name, unsafe {
-                    xed_decoded_inst_get_operand_width(&decoded_inst)
-                });
-            }
+            // let is_scalable = {
+            //     let sc = unsafe { xed_inst_get_attribute(inst_base, XED_ATTRIBUTE_SCALABLE) };
+            //     sc != 0
+            // };
 
-            match iform {
-                XED_IFORM_MOV_SEG_MEMw
-                | XED_IFORM_MOV_SEG_GPR16
-                | XED_IFORM_MOV_CR_CR_GPR32
-                | XED_IFORM_MOV_CR_CR_GPR64 => format!(
-                    "{}_{}",
-                    func_name,
-                    reg_str(unsafe { xed_decoded_inst_get_reg(&decoded_inst, XED_OPERAND_REG0,) })
-                ),
+            // if is_scalable {
+            //     func_name = format!("{}_{}", func_name, unsafe {
+            //         xed_decoded_inst_get_operand_width(&decoded_inst)
+            //     });
+            // }
 
-                _ => func_name,
-            }
+            // match iform {
+            //     XED_IFORM_MOV_SEG_MEMw
+            //     | XED_IFORM_MOV_SEG_GPR16
+            //     | XED_IFORM_MOV_CR_CR_GPR32
+            //     | XED_IFORM_MOV_CR_CR_GPR64 => format!(
+            //         "{}_{}",
+            //         func_name,
+            //         reg_str(unsafe { xed_decoded_inst_get_reg(&decoded_inst, XED_OPERAND_REG0,) })
+            //     ),
+
+            //     _ => func_name,
+            // }
         };
 
-        let decoded_byte_count = xed_decoded_inst_get_length(&decoded_inst) as usize;
+        let decoded_byte_count = decoded_inst_get_length(&decoded_inst) as usize;
 
         Ok(XedInst {
             data: &data[0..decoded_byte_count],

@@ -10,7 +10,7 @@ type BasicBlock =
     { ProgramCounter : uint64
       ExecutionMode : uint8
       Privilege : uint8
-      Data : byte array
+      Data : byte []
       LoopCount : uint64 }
 
 module Generator =
@@ -37,7 +37,7 @@ module Generator =
             use metaDataFileReader = new BinaryReader(File.OpenRead metadataFile)
             metaDataFileReader.ReadUInt64 ()
 
-        member gen.generate () =
+        member gen.Generate () =
             // ref: https://stackoverflow.com/questions/27274702/how-do-i-call-redis-stringset-from-f
             let inline (~~) (x : ^a) : ^b = ((^a or ^b) : (static member op_Implicit : ^a -> ^b) x)
 

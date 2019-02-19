@@ -3,6 +3,8 @@ use std::io::{self, Write};
 use structopt::StructOpt;
 use tabwriter::TabWriter;
 
+// use xed_sys as intel;
+
 #[macro_use]
 mod error;
 mod args;
